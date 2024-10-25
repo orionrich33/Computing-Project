@@ -24,7 +24,7 @@ l2_v = (l2*2*np.pi)/T
 #create arrays
 i_r_pos = np.array([l2*1.1,0])            #Initial position of rocket
 i_r_vel = np.array([0,l2_v])            #Initial velocity of rocket
-N = 5000000         #number of iterations
+N = 30*8640         #number of iterations
 s = (N,2)
 s2 = (N+1,2)
 m_pos = np.zeros(s)
