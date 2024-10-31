@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.animation import PillowWriter
 
 #inputs
 m_m = 7.348*1e22               #Mass of Moon
@@ -8,7 +10,7 @@ r_e = 4670*1e3                       #Radius of Earth to C.O.M. in km
 r_m = 379728*1e3                 #Radius of Moon to C.O.M.
 G = 6.67*1e-11                   #Gravitational constant
 a = 10             #Time step 
-phi = 0           #phase
+phi = np.pi           #phase
 d = 3.844*1e8               #earth-moon distance
 
 #compute L2
@@ -16,15 +18,16 @@ l2_delta_r = d*(m_m/(3*m_e))**(1/3)
 l2 = l2_delta_r+r_m 
 
 #compute T
-T = 2*np.pi*np.sqrt(((r_e+r_m)**3)/(G*(m_e+m_m)))
+T = 2*np.pi*np.sqrt(((r_e+r_m)**3)/(G*(m_e+m_m)))           #Correct
 
 #compute l2_v
 l2_v = (l2*2*np.pi)/T
 
 #create arrays
-i_r_pos = np.array([l2,0])            #Initial position of rocket
+i_r_pos = np.array([l2*1.03,0])            #Initial position of rocket
 i_r_vel = np.array([0,l2_v])            #Initial velocity of rocket
-N = 300000         #number of iterations
+l_period = 29.5*24*60*60               #lunar period
+N = round(6*l_period/a)         #number of iterations
 s = (N,2)
 s2 = (N+1,2)
 m_pos = np.zeros(s)
@@ -37,8 +40,8 @@ r_vel[0] = i_r_vel
 
 def acc(zi,n):
     theta = (2*np.pi*(n*a)/T)
-    e_p = np.array([r_e*np.cos(theta), r_e*np.sin(theta)])
-    m_p = np.array([r_m*np.cos(theta+phi), r_m*np.sin(theta+phi)])
+    e_p = np.array([r_e*np.cos(theta+phi), r_e*np.sin(theta+phi)])
+    m_p = np.array([r_m*np.cos(theta), r_m*np.sin(theta)])
     de_x = zi[0]-e_p[0]
     dm_x = zi[0]-m_p[0]   #can subtract matrices later on...
     de_y = zi[1]-e_p[1]
@@ -51,28 +54,62 @@ def acc(zi,n):
 
 for n in range(0,N):
     theta = (2*np.pi*(n*a)/T)
-    e_pos[n] = np.array([r_e*np.cos(theta), r_e*np.sin(theta)])
-    m_pos[n] = np.array([r_m*np.cos(theta+phi), r_m*np.sin(theta+phi)])
+    e_pos[n] = np.array([r_e*np.cos(theta+phi), r_e*np.sin(theta+phi)])
+    m_pos[n] = np.array([r_m*np.cos(theta), r_m*np.sin(theta)])
     z1 = np.array([r_pos[n][0]+(a/2)*r_vel[n][0], r_pos[n][1]+(a/2)*r_vel[n][1]])
     n_acc = acc(r_pos[n],n)
     z1_dot = np.array([r_vel[n][0]+(a/2)*n_acc[0], r_vel[n][1]+(a/2)*n_acc[1]])
     z2 = np.array([r_pos[n][0]+(a/2)*z1_dot[0], r_pos[n][1]+(a/2)*z1_dot[1]])
-    z1_acc = acc(z1,n+1/2)
+    z1_acc = acc(z1,n+0.5)
     z2_dot = np.array([r_vel[n][0]+(a/2)*z1_acc[0], r_vel[n][1]+(a/2)*z1_acc[1]])
     z3 = np.array([r_pos[n][0]+a*z2_dot[0], r_pos[n][1]+a*z2_dot[1]])
-    z2_acc = acc(z2,n+1/2)
+    z2_acc = acc(z2,n+0.5)
     z3_dot = np.array([r_vel[n][0]+a*z2_acc[0], r_vel[n][1]+a*z2_acc[1]])
     z3_acc = acc(z3,n+1)
     r_pos_x = r_pos[n][0]+(a/6)*(r_vel[n][0]+2*z1_dot[0]+2*z2_dot[0]+z3_dot[0])
-    r_pos_y = r_pos[n][1]+(a/6)*(r_vel[n][1]+2*z1_dot[1]+2*z2_dot[1]+z3_dot[0])
+    r_pos_y = r_pos[n][1]+(a/6)*(r_vel[n][1]+2*z1_dot[1]+2*z2_dot[1]+z3_dot[1])
     r_pos[n+1] = [r_pos_x, r_pos_y]
     r_vel_x = r_vel[n][0]+(a/6)*(n_acc[0]+2*z1_acc[0]+2*z2_acc[0]+z3_acc[0])
     r_vel_y = r_vel[n][1]+(a/6)*(n_acc[1]+2*z1_acc[1]+2*z2_acc[1]+z3_acc[1])
     r_vel[n+1] = np.array([r_vel_x, r_vel_y])
 
-    
-plt.plot(r_pos[:,0], r_pos[:,1], color='red', label='rocket')
-plt.plot(e_pos[:,0], e_pos[:,1], color='blue', label='earth')
-plt.plot(m_pos[:,0], m_pos[:,1], color='green', label='moon')
+xrocket = r_pos[0::4000][:,0]
+yrocket = r_pos[0::4000][:,1]
+xmoon = m_pos[0::4000][:,0]
+ymoon = m_pos[0::4000][:,1]
+xearth = e_pos[0::4000][:,0]
+yearth = e_pos[0::4000][:,1]
+
+plt.style.use('dark_background')
+
+fig, ax = plt.subplots(figsize=(5, 5))
+ax = plt.axes(xlim=(min(xrocket)+0.1*min(xrocket), max(xrocket)+0.1*max(xrocket)), ylim=(min(yrocket)+0.1*min(yrocket), max(yrocket)+0.1*max(yrocket)))
+rocket, = ax.plot([], [], color='g', lw=1, label='Rocket')
+moon, = ax.plot([], [], color='blue', lw=1, label='Moon')
+earth, = ax.plot([], [], color='r', lw=1, label='Earth')
+
+
+def animate(i):
+    rocket.set_data(xrocket[:i],yrocket[:i])
+    moon.set_data(xmoon[:i],ymoon[:i])
+    earth.set_data(xearth[:i],yearth[:i])
+    return rocket,moon,earth
+
+anim = FuncAnimation(fig, animate, frames=len(xrocket), interval=50, repeat=False)
+anim.save('cirlce_ani.gif', writer='pillow')
 plt.legend()
 plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
